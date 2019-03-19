@@ -25,11 +25,11 @@ main = do
 
 data Action = Inc
 
-counter :: Container
+counter :: Container {}
 counter = L.container 1 reducer render
   where
     reducer st Inc = pure $ st + 1
-    render st dispatch =
+    render _ st dispatch =
       L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number ]
 
 number :: ∀ act. Component Int act

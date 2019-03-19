@@ -6,6 +6,7 @@ module Loupe
   , Render
   , Dispatch
   , container
+  , containerDerivedProps
   , component
   , element
   , nest
@@ -28,7 +29,7 @@ import React as React
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Self-sufficient component
-type Container = ReactClass {}
+type Container props = ReactClass props
 
 -- | Composable component
 type Component st act = ReactClass { state :: st, dispatch :: Dispatch act }
@@ -46,13 +47,27 @@ type Dispatch act = act -> Effect Unit
 
 -- | Creates a self-sufficient container class from an initial state,
 -- | a reducer and a render function
-container :: ∀ st act. st -> Reducer st act -> Render st act -> Container
+container
+  :: ∀ props st act
+   . st
+  -> Reducer st act
+  -> (props -> Render st act)
+  -> Container props
 container initialState reducer render =
+  containerDerivedProps (const initialState) reducer render
+
+containerDerivedProps
+  :: ∀ props st act
+   . (props -> st)
+  -> Reducer st act
+  -> (props -> Render st act)
+  -> Container props
+containerDerivedProps deriveState reducer render =
   unsafeFunctionComponent $ mkEffectFn1 run
   where
-    run {} = ado
-      {state, dispatch} <- useReducer reducer initialState
-      in render state dispatch {state, dispatch}
+    run props = ado
+      {state, dispatch} <- useReducer reducer $ deriveState props
+      in render props state dispatch {state, dispatch}
 
 component' :: ∀ st act. Element st act -> Component st act
 component' = unsafeCoerce
@@ -67,9 +82,9 @@ component render = component' run
 element :: ∀ st act. Component st act -> Element st act
 element = React.createLeafElement
 
--- | Creates an element from a container
-nest :: ∀ st act. Container -> Element st act
-nest cl _ = React.createLeafElement cl {}
+-- | Creates an element from a container and props
+nest :: ∀ props st act. Container {| props } -> {| props } -> Element st act
+nest cl = const <<< React.unsafeCreateLeafElement cl
 
 focus
   :: ∀ st1 st2 act1 act2
