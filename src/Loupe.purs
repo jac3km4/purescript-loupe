@@ -21,9 +21,11 @@ import Prelude
 import Data.Either (either)
 import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Lens (Getter', Prism', Review', matching, review, (^.))
+import Data.Nullable (Nullable)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Uncurried (EffectFn1, EffectFn2, mkEffectFn1, mkEffectFn2, runEffectFn1, runEffectFn2)
+import Foreign (Foreign)
 import React (ReactClass, ReactElement)
 import React as React
 import Unsafe.Coerce (unsafeCoerce)
@@ -38,10 +40,10 @@ type Component st act = ReactClass { state :: st, dispatch :: Dispatch act }
 type Element st act = { state :: st, dispatch :: Dispatch act } -> ReactElement
 
 -- | Reducer function used in containers
-type Reducer st act = st -> act -> Effect st
+type Reducer st act = st -> act -> Dispatch act -> Effect st
 
 -- | Render function with a state and a dispatcher
-type Render st act = st -> (act -> Effect Unit) -> Element st act
+type Render st act = st -> Dispatch act -> Element st act
 
 type Dispatch act = act -> Effect Unit
 
@@ -65,9 +67,10 @@ containerDerivedProps
 containerDerivedProps deriveState reducer render =
   unsafeFunctionComponent $ mkEffectFn1 run
   where
-    run props = ado
-      {state, dispatch} <- useReducer reducer $ deriveState props
-      in render props state dispatch {state, dispatch}
+    run props = do
+      { state, setState } <- useState $ deriveState props
+      let dispatch act = reducer state act dispatch >>= setState
+      pure $ render props state dispatch {state, dispatch}
 
 component' :: ∀ st act. Element st act -> Component st act
 component' = unsafeCoerce
@@ -130,3 +133,26 @@ foreign import useReducer_
      (EffectFn2 st act st)
      st
      { state :: st, dispatch :: EffectFn1 act Unit }
+
+useState :: ∀ st. st -> Effect { state :: st, setState :: st -> Effect Unit }
+useState initialState = ado
+  result <- runEffectFn1 useState_ initialState
+  in { state: result.state, setState: runEffectFn1 result.setState }
+
+foreign import useState_
+  :: ∀ st
+   . EffectFn1
+     st
+     { state :: st, setState :: EffectFn1 st Unit }
+
+useEffect :: Nullable (Array Foreign) -> Effect (Effect Unit) -> Effect Unit
+useEffect deps fn = runEffectFn2 useEffect_ fn deps
+
+foreign import useEffect_ :: EffectFn2 (Effect (Effect Unit)) (Nullable (Array Foreign)) Unit
+
+useRef :: ∀ a. a -> Effect { get :: Effect a, set :: a -> Effect Unit }
+useRef value = ado
+  result <- runEffectFn1 useRef_ value
+  in { get: result.get, set: runEffectFn1 result.set }
+
+foreign import useRef_ :: ∀ a. EffectFn1 a { get :: Effect a, set :: EffectFn1 a Unit }

@@ -28,7 +28,7 @@ data Action = Inc
 counter :: Container {}
 counter = L.container 1 reducer render
   where
-    reducer st Inc = pure $ st + 1
+    reducer st Inc _ = pure $ st + 1
     render _ st dispatch =
       L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number ]
 
