@@ -10,6 +10,7 @@ module Loupe
   , component
   , element
   , nest
+  , fromClass
   , focus
   , focusS
   , match
@@ -23,6 +24,7 @@ import Control.Coroutine as Co
 import Control.Monad.Rec.Class (forever)
 import Data.Either (either)
 import Data.FoldableWithIndex (foldMapWithIndex)
+import Data.Function (applyFlipped)
 import Data.Lens (Getter', Prism', Review', matching, review, (^.))
 import Data.Nullable (Nullable)
 import Data.Tuple (Tuple(..))
@@ -31,7 +33,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Uncurried (EffectFn1, EffectFn2, mkEffectFn1, mkEffectFn2, runEffectFn1, runEffectFn2)
 import Foreign (Foreign)
-import React (ReactClass, ReactElement)
+import React (Children, ReactClass, ReactElement)
 import React as React
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -102,6 +104,15 @@ element = React.createLeafElement
 -- | Creates an element from a container and props
 nest :: ∀ props st act. Container {| props } -> {| props } -> Element st act
 nest cl = const <<< React.unsafeCreateLeafElement cl
+
+fromClass
+  :: ∀ props st act
+   . ReactClass { children :: Children | props }
+  -> {| props }
+  -> Array (Element st act)
+  -> Element st act
+fromClass cl props children conf =
+  React.unsafeCreateElement cl props $ applyFlipped conf <$> children
 
 focus
   :: ∀ st1 st2 act1 act2
