@@ -18,12 +18,17 @@ module Loupe
   ) where
 import Prelude
 
+import Control.Coroutine (Producer, ($$))
+import Control.Coroutine as Co
+import Control.Monad.Rec.Class (forever)
 import Data.Either (either)
 import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Lens (Getter', Prism', Review', matching, review, (^.))
 import Data.Nullable (Nullable)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Effect.Aff (Aff, launchAff_)
+import Effect.Class (liftEffect)
 import Effect.Uncurried (EffectFn1, EffectFn2, mkEffectFn1, mkEffectFn2, runEffectFn1, runEffectFn2)
 import Foreign (Foreign)
 import React (ReactClass, ReactElement)
@@ -40,7 +45,11 @@ type Component st act = ReactClass { state :: st, dispatch :: Dispatch act }
 type Element st act = { state :: st, dispatch :: Dispatch act } -> ReactElement
 
 -- | Reducer function used in containers
-type Reducer st act = st -> act -> Dispatch act -> Effect st
+type Reducer st act
+   = act
+  -> (act -> Aff Unit)
+  -> st
+  -> Producer (st -> st) Aff Unit
 
 -- | Render function with a state and a dispatcher
 type Render st act = st -> Dispatch act -> Element st act
@@ -65,12 +74,17 @@ containerDerivedProps
   -> (props -> Render st act)
   -> Container props
 containerDerivedProps deriveState reducer render =
-  unsafeFunctionComponent $ mkEffectFn1 run
+  unsafeFunctionComponent $ mkEffectFn1 constructor
   where
-    run props = do
+    constructor props = ado
       { state, setState } <- useState $ deriveState props
-      let dispatch act = reducer state act dispatch >>= setState
-      pure $ render props state dispatch {state, dispatch}
+      let consumer = consume setState
+      let dispatch' act = Co.runProcess $ reducer act dispatch' state $$ consumer
+      let dispatch = launchAff_ <<< dispatch'
+      in render props state dispatch {state, dispatch}
+    consume setState = forever do
+      modify <- Co.await
+      liftEffect $ setState modify
 
 component' :: ∀ st act. Element st act -> Component st act
 component' = unsafeCoerce
@@ -134,7 +148,7 @@ foreign import useReducer_
      st
      { state :: st, dispatch :: EffectFn1 act Unit }
 
-useState :: ∀ st. st -> Effect { state :: st, setState :: st -> Effect Unit }
+useState :: ∀ st. st -> Effect { state :: st, setState :: (st -> st) -> Effect Unit }
 useState initialState = ado
   result <- runEffectFn1 useState_ initialState
   in { state: result.state, setState: runEffectFn1 result.setState }
@@ -143,7 +157,7 @@ foreign import useState_
   :: ∀ st
    . EffectFn1
      st
-     { state :: st, setState :: EffectFn1 st Unit }
+     { state :: st, setState :: EffectFn1 (st -> st) Unit }
 
 useEffect :: Nullable (Array Foreign) -> Effect (Effect Unit) -> Effect Unit
 useEffect deps fn = runEffectFn2 useEffect_ fn deps

@@ -1,9 +1,10 @@
 module Example where
 import Prelude
 
+import Control.Coroutine as Co
 import Data.Maybe (fromJust)
 import Effect (Effect)
-import Loupe (Container, Component)
+import Loupe (Component, Container)
 import Loupe (component, container, element) as L
 import Loupe.DOM (div, text) as L
 import Loupe.DOM.Props as P
@@ -28,7 +29,7 @@ data Action = Inc
 counter :: Container {}
 counter = L.container 1 reducer render
   where
-    reducer st Inc _ = pure $ st + 1
+    reducer Inc _ _ = Co.emit $ \x -> x + 1
     render _ st dispatch =
       L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number ]
 
