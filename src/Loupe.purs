@@ -7,6 +7,7 @@ module Loupe
   , Dispatch
   , container
   , containerDerivedProps
+  , reify
   , component
   , element
   , nest
@@ -91,11 +92,12 @@ containerDerivedProps deriveState reducer render =
 component' :: ∀ st act. Element st act -> Component st act
 component' = unsafeCoerce
 
+reify :: ∀ st act. Render st act -> Element st act
+reify render {state, dispatch} = render state dispatch {state, dispatch}
+
 -- | Creates a composable component from a render function
 component :: ∀ st act. Render st act -> Component st act
-component render = component' run
-  where
-    run {state, dispatch} = render state dispatch {state, dispatch}
+component = component' <<< reify
 
 -- | Creates an element from a component
 element :: ∀ st act. Component st act -> Element st act
