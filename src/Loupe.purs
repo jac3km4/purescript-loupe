@@ -42,7 +42,11 @@ import Unsafe.Coerce (unsafeCoerce)
 type Container props = ReactClass props
 
 -- | Composable component
-type Component st act = ReactClass { state :: st, dispatch :: Dispatch act }
+type Component props st act =
+  ReactClass { props :: props, state :: st, dispatch :: Dispatch act }
+
+-- | Component with no props
+type Component' st act = Component {} st act
 
 -- | Generic type used for all elements
 type Element st act = { state :: st, dispatch :: Dispatch act } -> ReactElement
@@ -55,7 +59,7 @@ type Reducer st act
   -> Producer (st -> st) Aff Unit
 
 -- | Render function with a state and a dispatcher
-type Render st act = st -> Dispatch act -> Element st act
+type Render props st act = props -> st -> Dispatch act -> Element st act
 
 type Dispatch act = act -> Effect Unit
 
@@ -65,7 +69,7 @@ container
   :: ∀ props st act
    . st
   -> Reducer st act
-  -> (props -> Render st act)
+  -> Render props st act
   -> Container props
 container initialState reducer render =
   containerDerivedProps (const initialState) reducer render
@@ -74,7 +78,7 @@ containerDerivedProps
   :: ∀ props st act
    . (props -> st)
   -> Reducer st act
-  -> (props -> Render st act)
+  -> Render props st act
   -> Container props
 containerDerivedProps deriveState reducer render =
   unsafeFunctionComponent $ mkEffectFn1 constructor
@@ -89,19 +93,22 @@ containerDerivedProps deriveState reducer render =
       modify <- Co.await
       liftEffect $ setState modify
 
-component' :: ∀ st act. Element st act -> Component st act
-component' = unsafeCoerce
+component' :: ∀ props st act. (props -> Element st act) -> Component props st act
+component' render = unsafeCoerce render'
+  where
+    render' {props, state, dispatch} = render props {state, dispatch}
 
-reify :: ∀ st act. Render st act -> Element st act
+reify :: ∀ st act. (st -> Dispatch act -> Element st act) -> Element st act
 reify render {state, dispatch} = render state dispatch {state, dispatch}
 
 -- | Creates a composable component from a render function
-component :: ∀ st act. Render st act -> Component st act
-component = component' <<< reify
+component :: ∀ props st act. Render props st act -> Component props st act
+component render = component' $ reify <<< render
 
 -- | Creates an element from a component
-element :: ∀ st act. Component st act -> Element st act
-element = React.createLeafElement
+element :: ∀ props st act. Component props st act -> props -> Element st act
+element cls props {state, dispatch} =
+  React.createLeafElement cls {props, state, dispatch}
 
 -- | Creates an element from a container and props
 nest :: ∀ props st act. Container {| props } -> {| props } -> Element st act

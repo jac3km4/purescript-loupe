@@ -31,9 +31,9 @@ counter = L.container 1 reducer render
   where
     reducer Inc _ _ = Co.emit $ \x -> x + 1
     render _ st dispatch =
-      L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number ]
+      L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number {} ]
 
-number :: ∀ act. Component Int act
+number :: ∀ act. Component {} Int act
 number = L.component render
   where
-    render st _ = L.text $ show st
+    render _ st _ = L.text $ show st
