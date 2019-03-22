@@ -1,6 +1,7 @@
 module Loupe
   ( Container
   , Component
+  , Component'
   , Element
   , Reducer
   , Render
