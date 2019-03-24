@@ -5,7 +5,7 @@ import Control.Coroutine as Co
 import Data.Maybe (fromJust)
 import Effect (Effect)
 import Loupe (Component, Container)
-import Loupe (component, container, element) as L
+import Loupe (component, container, element, mountNoop) as L
 import Loupe.DOM (div, text) as L
 import Loupe.DOM.Props as P
 import Partial.Unsafe (unsafePartial)
@@ -27,7 +27,7 @@ main = do
 data Action = Inc
 
 counter :: Container {}
-counter = L.container 1 reducer render
+counter = L.container 1 render reducer L.mountNoop
   where
     reducer Inc _ _ = Co.emit $ \x -> x + 1
     render _ st dispatch =

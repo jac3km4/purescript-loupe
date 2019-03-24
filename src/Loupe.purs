@@ -6,6 +6,7 @@ module Loupe
   , Reducer
   , Render
   , Dispatch
+  , OnMount
   , container
   , containerDerivedProps
   , reify
@@ -18,6 +19,7 @@ module Loupe
   , match
   , split
   , foreach
+  , mountNoop
   ) where
 import Prelude
 
@@ -28,7 +30,7 @@ import Data.Either (either)
 import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Function (applyFlipped)
 import Data.Lens (Getter', Prism', Review', matching, review, (^.))
-import Data.Nullable (Nullable)
+import Data.Nullable (Nullable, notNull)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -64,32 +66,38 @@ type Render props st act = props -> st -> Dispatch act -> Element st act
 
 type Dispatch act = act -> Effect Unit
 
+-- | Function to be executed on component mount that returns a canceler
+type OnMount act = Dispatch act -> Effect (Effect Unit)
+
 -- | Creates a self-sufficient container class from an initial state,
 -- | a reducer and a render function
 container
   :: ∀ props st act
    . st
-  -> Reducer st act
   -> Render props st act
+  -> Reducer st act
+  -> OnMount act
   -> Container props
-container initialState reducer render =
-  containerDerivedProps (const initialState) reducer render
+container initialState =
+  containerDerivedProps (const initialState)
 
 containerDerivedProps
   :: ∀ props st act
    . (props -> st)
-  -> Reducer st act
   -> Render props st act
+  -> Reducer st act
+  -> OnMount act
   -> Container props
-containerDerivedProps deriveState reducer render =
+containerDerivedProps deriveState render reducer initEffect =
   unsafeFunctionComponent $ mkEffectFn1 constructor
   where
-    constructor props = ado
+    constructor props = do
       { state, setState } <- useState $ deriveState props
       let consumer = consume setState
       let dispatch' act = Co.runProcess $ reducer act dispatch' state $$ consumer
       let dispatch = launchAff_ <<< dispatch'
-      in render props state dispatch {state, dispatch}
+      _ <- useEffect (notNull []) (initEffect dispatch)
+      pure $ render props state dispatch {state, dispatch}
     consume setState = forever do
       modify <- Co.await
       liftEffect $ setState modify
@@ -149,6 +157,9 @@ foreach :: ∀ st act. (Int -> Element st act) -> Element (Array st) (Tuple Int 
 foreach render {state, dispatch} = foldMapWithIndex el state
   where
     el i item = render i { state: item, dispatch: dispatch <<< Tuple i }
+
+mountNoop :: ∀ act. OnMount act
+mountNoop _ = pure (pure unit)
 
 unsafeFunctionComponent :: forall props. EffectFn1 props ReactElement -> ReactClass props
 unsafeFunctionComponent = unsafeCoerce
