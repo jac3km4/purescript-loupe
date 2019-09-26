@@ -29,7 +29,7 @@ data Action = Inc
 counter :: Container {}
 counter = L.container 1 render reducer L.mountNoop
   where
-    reducer Inc _ _ = Co.emit $ \x -> x + 1
+    reducer Inc _ _ _ = Co.emit $ \x -> x + 1
     render _ st dispatch =
       L.div [ P.onClick $ const $ dispatch Inc ] [ L.element number {} ]
 

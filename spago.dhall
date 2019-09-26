@@ -1,4 +1,6 @@
-{ name =
+{ sources =
+    [ "src/**/*.purs", "test/**/*.purs" ]
+, name =
     "loupe"
 , dependencies =
     [ "effect"

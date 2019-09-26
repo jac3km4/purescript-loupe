@@ -55,10 +55,11 @@ type Component' st act = Component {} st act
 type Element st act = { state :: st, dispatch :: Dispatch act } -> ReactElement
 
 -- | Reducer function used in containers
-type Reducer st act
+type Reducer props st act
    = act
-  -> (act -> Aff Unit)
+  -> props
   -> st
+  -> (act -> Aff Unit)
   -> Producer (st -> st) Aff Unit
 
 -- | Render function with a state and a dispatcher
@@ -75,7 +76,7 @@ container
   :: ∀ props st act
    . st
   -> Render props st act
-  -> Reducer st act
+  -> Reducer props st act
   -> OnMount act
   -> Container props
 container initialState =
@@ -85,7 +86,7 @@ containerDerivedProps
   :: ∀ props st act
    . (props -> st)
   -> Render props st act
-  -> Reducer st act
+  -> Reducer props st act
   -> OnMount act
   -> Container props
 containerDerivedProps deriveState render reducer initEffect =
@@ -94,7 +95,7 @@ containerDerivedProps deriveState render reducer initEffect =
     constructor props = do
       { state, setState } <- useState $ deriveState props
       let consumer = consume setState
-      let dispatch' act = Co.runProcess $ reducer act dispatch' state $$ consumer
+      let dispatch' act = Co.runProcess $ reducer act props state dispatch' $$ consumer
       let dispatch = launchAff_ <<< dispatch'
       _ <- useEffect (notNull []) (initEffect dispatch)
       pure $ render props state dispatch {state, dispatch}
